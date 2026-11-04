@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
-from garcar_api_bank import GarcarAPIBank, GarcarConfig, SystemMessage
+from src.garcar_api_bank import GarcarAPIBank, GarcarConfig, SystemMessage
 
 logger = logging.getLogger("garcar.registry")
 

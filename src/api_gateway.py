@@ -10,8 +10,8 @@ import asyncio
 import logging
 from typing import Dict, List, Optional
 
-from garcar_api_bank import GarcarAPIBank, GarcarConfig
-from system_registry import get_registry, GarcarSystemRegistry
+from src.garcar_api_bank import GarcarAPIBank, GarcarConfig
+from src.system_registry import get_registry, GarcarSystemRegistry
 
 logger = logging.getLogger("garcar.gateway")
 

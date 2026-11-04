@@ -15,8 +15,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from garcar_api_bank import GarcarAPIBank, GarcarConfig
-from system_registry import register_this_system, get_registry
+from src.garcar_api_bank import GarcarAPIBank, GarcarConfig
+from src.system_registry import register_this_system, get_registry
 
 logger = logging.getLogger("titan.autonomous_business")
 
