@@ -253,6 +253,18 @@ class GarcarPlatform:
 
         asyncio.ensure_future(heartbeat_loop())
         await self.bank.startup()
+        if os.getenv("GARCAR_MESH_PUBLISH_ENABLED", "").lower() == "true":
+            async def mesh_heartbeat_loop():
+                from src.mesh_heartbeat import send_heartbeat
+                while True:
+                    try:
+                        # Report conservative state: health metadata is not proof
+                        # of agent, trading, payment or registry readiness.
+                        await asyncio.to_thread(send_heartbeat, "degraded")
+                    except Exception:
+                        logger.warning("Mesh heartbeat unavailable; continuing locally")
+                    await asyncio.sleep(300)
+            asyncio.create_task(mesh_heartbeat_loop())
         logger.info(f"Background tasks started for {self.system_id}")
 
     def run(self, host: str = "0.0.0.0"):
