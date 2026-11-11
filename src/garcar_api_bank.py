@@ -70,6 +70,8 @@ class AuthBank:
 
     def issue_token(self, subject: str, roles: List[str] = None,
                     ttl_hours: int = 24) -> str:
+        if not self.secret or self.secret == "change-me-in-production":
+            raise RuntimeError("GARCAR_JWT_SECRET must be securely configured")
         payload = {
             "sub": subject,
             "iss": "garcar",
@@ -88,19 +90,31 @@ class AuthBank:
         return f"{encoded}.{sig}"
 
     def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
+        if not self.secret or self.secret == "change-me-in-production" or not token:
+            return None
         try:
             if jwt:
-                return jwt.decode(token, self.secret, algorithms=["HS256"])
+                return jwt.decode(token, self.secret, algorithms=["HS256"], issuer="garcar")
             parts = token.split(".")
             if len(parts) != 2:
                 return None
             import base64
-            payload = json.loads(base64.urlsafe_b64decode(parts[0] + "=="))
-            if payload.get("exp", 0) < time.time():
+            expected = hmac.new(self.secret.encode(), parts[0].encode(), hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(expected, parts[1]):
+                return None
+            payload = json.loads(base64.urlsafe_b64decode(parts[0] + "=" * (-len(parts[0]) % 4)))
+            if not isinstance(payload, dict) or payload.get("iss") != "garcar":
+                return None
+            exp = payload.get("exp")
+            iat = payload.get("iat")
+            if not isinstance(exp, (int, float)) or not isinstance(iat, (int, float)):
+                return None
+            now = time.time()
+            if exp <= now or iat > now + 60 or not isinstance(payload.get("sub"), str):
                 return None
             return payload
-        except Exception as e:
-            logger.warning(f"Token verification failed: {e}")
+        except Exception:
+            logger.warning("Token verification failed")
             return None
 
     def service_token(self, service_name: str) -> str:
