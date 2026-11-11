@@ -37,8 +37,8 @@ class AuthBankTests(unittest.TestCase):
 
 class ProtectedRoutes(unittest.TestCase):
     def test_mesh_events_and_registry_reject_missing_or_invalid_auth(self):
+        previous_secret = api_bank.GarcarConfig.JWT_SECRET
         async def case():
-            previous_secret = api_bank.GarcarConfig.JWT_SECRET
             api_bank.GarcarConfig.JWT_SECRET = "test-only-long-nonproduction-signing-secret"
             platform = GarcarPlatform(system_id="titan-business-empire", domain="finance")
             platform.bank.auth.secret = api_bank.GarcarConfig.JWT_SECRET
