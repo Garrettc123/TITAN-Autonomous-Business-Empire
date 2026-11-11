@@ -38,6 +38,7 @@ class AuthBankTests(unittest.TestCase):
 class ProtectedRoutes(unittest.TestCase):
     def test_mesh_events_and_registry_reject_missing_or_invalid_auth(self):
         async def case():
+            previous_secret = api_bank.GarcarConfig.JWT_SECRET
             api_bank.GarcarConfig.JWT_SECRET = "test-only-long-nonproduction-signing-secret"
             platform = GarcarPlatform(system_id="titan-business-empire", domain="finance")
             platform.bank.auth.secret = api_bank.GarcarConfig.JWT_SECRET
@@ -52,6 +53,34 @@ class ProtectedRoutes(unittest.TestCase):
                     self.assertEqual(malformed.status_code, 401, path)
                 self.assertEqual((await client.get("/health")).status_code, 200)
                 self.assertEqual((await client.get("/ready")).status_code, 200)
+        try:
+            asyncio.run(case())
+        finally:
+            api_bank.GarcarConfig.JWT_SECRET = previous_secret
+
+    def test_websocket_missing_auth_is_denied_before_accept(self):
+        async def case():
+            platform = GarcarPlatform(system_id="titan-business-empire", domain="finance")
+            sent = []
+
+            async def receive():
+                return {"type": "websocket.connect"}
+
+            async def send(message):
+                sent.append(message)
+
+            scope = {
+                "type": "websocket", "asgi": {"version": "3.0"},
+                "http_version": "1.1", "scheme": "ws", "path": "/stream",
+                "raw_path": b"/stream", "query_string": b"",
+                "root_path": "", "headers": [], "client": ("127.0.0.1", 1),
+                "server": ("testserver", 80), "subprotocols": [],
+            }
+            await platform.app(scope, receive, send)
+            self.assertTrue(sent)
+            self.assertEqual(sent[0]["type"], "websocket.close")
+            self.assertEqual(sent[0]["code"], 1008)
+
         asyncio.run(case())
 
 
