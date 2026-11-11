@@ -145,8 +145,11 @@ class GarcarPlatform:
             public = ["/health", "/ready", "/metrics", "/docs",
                       "/redoc", "/openapi.json"]
             if request.url.path not in public:
-                token = request.headers.get("Authorization", "").replace("Bearer ", "")
-                if token and not self.bank.auth.verify_token(token):
+                authorization = request.headers.get("Authorization", "")
+                if not authorization.startswith("Bearer "):
+                    return JSONResponse({"error": "Unauthorized"}, status_code=401)
+                token = authorization[len("Bearer "):].strip()
+                if not token or not self.bank.auth.verify_token(token):
                     return JSONResponse({"error": "Unauthorized"}, status_code=401)
                 if not self.bank.rate_limiter.allow(str(request.client.host)):
                     return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
@@ -197,6 +200,14 @@ class GarcarPlatform:
 
         @app.websocket("/stream")
         async def ws_stream(websocket: WebSocket):
+            authorization = websocket.headers.get("authorization", "")
+            if not authorization.startswith("Bearer "):
+                await websocket.close(code=1008)
+                return
+            token = authorization[len("Bearer "):].strip()
+            if not token or not self.bank.auth.verify_token(token):
+                await websocket.close(code=1008)
+                return
             await websocket.accept()
             self._ws_clients.append(websocket)
             try:
@@ -242,6 +253,18 @@ class GarcarPlatform:
 
         asyncio.ensure_future(heartbeat_loop())
         await self.bank.startup()
+        if os.getenv("GARCAR_MESH_PUBLISH_ENABLED", "").lower() == "true":
+            async def mesh_heartbeat_loop():
+                from src.mesh_heartbeat import send_heartbeat
+                while True:
+                    try:
+                        # Report conservative state: health metadata is not proof
+                        # of agent, trading, payment or registry readiness.
+                        await asyncio.to_thread(send_heartbeat, "degraded")
+                    except Exception:
+                        logger.warning("Mesh heartbeat unavailable; continuing locally")
+                    await asyncio.sleep(300)
+            asyncio.create_task(mesh_heartbeat_loop())
         logger.info(f"Background tasks started for {self.system_id}")
 
     def run(self, host: str = "0.0.0.0"):
